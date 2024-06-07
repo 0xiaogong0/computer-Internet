@@ -4,6 +4,7 @@ import time
 import random
 import threading
 
+
 class UDPServer:
     def __init__(self, host_ip, host_port, loss_rate=0.3):
         """
@@ -62,7 +63,13 @@ class UDPServer:
             elif type == 7:  # FIN
                 response = struct.pack('!H', 8)  # FIN-ACK
                 self.server_socket.sendto(response, client_address)
-                print(f"\n与客户端 {client_address} 断开连接")
+                response = struct.pack('!H', 11)
+                self.server_socket.sendto(response, client_address)
+                response, _ = self.server_socket.recvfrom(1024)
+                if response and struct.unpack('!H', response[:2])[0] == 9:  # 接收FIN-ACK
+                    print(f"\n与客户端 {client_address} 断开连接")
+                else:
+                    print('模拟TCP四次挥手断开连接失败，未收到客户端的确认')
                 break
 
     def run(self):
@@ -75,6 +82,7 @@ class UDPServer:
             if self.connect(data, client_address):  # 建立连接
                 client_thread = threading.Thread(target=self.handle_client)
                 client_thread.start()
+
 
 if __name__ == '__main__':
     server = UDPServer('127.0.0.1', 9999)
