@@ -4,6 +4,7 @@ import struct
 import sys
 import statistics
 
+
 class UDPClient:
     def __init__(self, server_ip, server_port):
         """
@@ -37,6 +38,7 @@ class UDPClient:
         返回值:
             bytes: 构建的UDP报文消息
         """
+        message = None
         if type == 1:  # SYN
             message = struct.pack('!H', type)
         elif type == 3:  # ACK
@@ -46,6 +48,8 @@ class UDPClient:
             length = len(data)
             message = struct.pack(f'!HHBI{length}s', type, seq_no, version, length, data)
         elif type == 7:  # FIN
+            message = struct.pack('!H', type)
+        elif type == 9:  # FIN-ACK
             message = struct.pack('!H', type)
         return message
 
@@ -84,9 +88,9 @@ class UDPClient:
         返回值:
             bool: 连接是否成功建立
         """
-        response, _ = self.send_message(1)  # 发送SYN
+        response, _ = self.send_message(1)
         if response and struct.unpack('!H', response)[0] == 2:  # 接收SYN-ACK
-            self.send_message(3)  # 发送ACK
+            self.client_socket.sendto(self.build_message(3), (self.server_ip, self.server_port))  # 发送ACK
             print(f"与服务器 {self.server_ip}:{self.server_port} 建立连接\n")
             return True
         return False
@@ -95,9 +99,14 @@ class UDPClient:
         """
         断开连接，模拟TCP四次挥手
         """
-        response, _ = self.send_message(7)  # 发送FIN
+        response, _ = self.send_message(7)
         if response and struct.unpack('!H', response)[0] == 8:  # 接收FIN-ACK
+            response, _ = self.client_socket.recvfrom(1024)
+            message = self.build_message(9)  # 发送FIN-ACK
+            self.client_socket.sendto(message, (self.server_ip, self.server_port))
             print(f"\n与服务器 {self.server_ip}:{self.server_port} 断开连接")
+        else:
+            print("\n模拟TCP四次挥手断开连接失败，未收到服务器的确认")
 
     def run(self):
         """
@@ -109,7 +118,8 @@ class UDPClient:
                 response, rtt = self.send_message(5, self.sequence_number, self.version)  # 发送数据请求
                 if response:
                     msg_type, seq_no, version, server_time = struct.unpack('!HHB8s', response)
-                    print(f"序号: {self.sequence_number}, 服务器IP: {self.server_ip}:{self.server_port}, RTT: {rtt:.2f}ms, 服务器时间: {server_time.decode().strip()}")
+                    print(
+                        f"序号: {self.sequence_number}, 服务器IP: {self.server_ip}:{self.server_port}, RTT: {rtt:.2f}ms, 服务器时间: {server_time.decode().strip()}")
                 else:
                     print(f"序号: {self.sequence_number}, 请求超时")
                 self.sequence_number += 1
@@ -137,8 +147,10 @@ class UDPClient:
         print("\n汇总信息:")
         print(f"接收到的报文数: {self.received_packets}")
         print(f"丢包率: {loss_rate:.2f}%")
-        print(f"最大 RTT: {max_rtt:.2f}ms, 最小 RTT: {min_rtt:.2f}ms, 平均 RTT: {avg_rtt:.2f}ms, RTT 标准差: {stddev_rtt:.2f}ms")
+        print(
+            f"最大 RTT: {max_rtt:.2f}ms, 最小 RTT: {min_rtt:.2f}ms, 平均 RTT: {avg_rtt:.2f}ms, RTT 标准差: {stddev_rtt:.2f}ms")
         print(f"服务器响应总时间: {total_time:.2f}s")
+
 
 if __name__ == '__main__':
     if len(sys.argv) != 3:
